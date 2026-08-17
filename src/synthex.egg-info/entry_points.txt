@@ -1,0 +1,2 @@
+[console_scripts]
+synthex = synthex.cli:main

@@ -1,0 +1,29 @@
+{
+  "agentId": "normalizer-g1-1786994809",
+  "agentType": "normalizer",
+  "generation": 1,
+  "whatWorked": [
+    "Removed 6 goto statement(s)",
+    "Improved variable naming quality",
+    "Improved type coverage",
+    "Added documentation comments"
+  ],
+  "whatFailed": [],
+  "recommendations": [],
+  "gaps": [
+    {
+      "domain": "control_flow",
+      "description": "3 goto statements still present",
+      "impact": "medium",
+      "suggestedAction": "Convert remaining gotos to structured control flow"
+    }
+  ],
+  "scores": {
+    "input": 22,
+    "output": 50,
+    "delta": 28
+  },
+  "emergentSkill": null,
+  "emergentSkillExercised": false,
+  "tokensConsumed": 2658
+}

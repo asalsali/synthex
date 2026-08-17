@@ -1,0 +1,87 @@
+Metadata-Version: 2.4
+Name: synthex
+Version: 0.1.0
+Summary: Multi-generational agent code synthesis -- decompiled C to clean code through iterative LLM refinement
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: click>=8.0
+Requires-Dist: rich>=13.0
+Requires-Dist: openai>=1.0
+
+# Synthex
+
+Multi-generational agent code synthesis. Takes decompiled C code and runs it through multiple LLM agent generations, each reading the previous generation's exit report to produce progressively cleaner code.
+
+## Install
+
+```bash
+pip install -e .
+```
+
+Requires an OpenAI-compatible API. Set `OPENAI_API_KEY` or use `--base-url` for local models (Ollama, vLLM, etc.).
+
+### Using with Ollama
+
+```bash
+ollama pull codellama:34b
+synthex refine input.c --model codellama:34b --base-url http://localhost:11434/v1
+```
+
+## Quick Start
+
+```bash
+# Score a decompiled C file
+synthex score examples/sample_decompiled.c
+
+# Refine through 3 generations
+synthex refine examples/sample_decompiled.c --generations 3
+
+# Compare two files
+synthex compare examples/sample_decompiled.c synthex-output/g3-synthesizer.c
+```
+
+## How Generations Work
+
+Each generation is a specialized agent that reads code and the previous agent's structured exit report.
+
+```
+Input (raw Ghidra output, score ~42)
+  |
+  v
+G1 Normalizer -- rename vars, remove gotos, recover types
+  |              writes exit report: what worked, what failed, gaps
+  v
+G2a Optimizer -- reads G1 report, optimizes for speed
+G2b Clarifier -- reads G1 report, optimizes for readability
+  |
+  v
+G3 Synthesizer -- reads BOTH G2 reports + code, merges best of both
+                   declares emergent skill: "context-aware synthesis"
+```
+
+The exit report is the gradient. Each generation does not just produce better code -- it produces a map of where improvement is still possible, and the next generation uses that map.
+
+## Output
+
+After running `synthex refine`, find results in `synthex-output/`:
+
+- `g0-input.c` -- original input
+- `g1-normalizer.c` -- G1 output
+- `g2a-optimizer.c` -- G2a output
+- `g2b-clarifier.c` -- G2b output
+- `g3-synthesizer.c` -- final synthesized output
+- `inheritance/` -- exit reports from each agent (JSON)
+
+## Scoring
+
+Files are scored 0-100 based on:
+
+| Metric | Weight | Direction |
+|---|---|---|
+| Line count | 15 | Lower is better |
+| Goto statements | 20 | Fewer is better |
+| Meaningful names | 25 | Higher ratio is better |
+| Type coverage | 15 | Higher ratio is better |
+| Comment density | 10 | Higher is better (up to 30%) |
+| Cyclomatic complexity | 15 | Lower is better |
