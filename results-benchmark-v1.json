@@ -1,0 +1,154 @@
+{
+  "model": "gpt-4o-mini",
+  "functions": 20,
+  "wins": 19,
+  "losses": 1,
+  "ties": 0,
+  "mean_advantage": 8.6,
+  "experimental_compile_rate": 0.0,
+  "control_compile_rate": 0.0,
+  "experimental_tokens": 133232,
+  "control_tokens": 63626,
+  "per_function": [
+    {
+      "name": "fn01_linked_list_insert",
+      "input_score": 42,
+      "experimental_delta": 42,
+      "control_delta": 41,
+      "advantage": 1
+    },
+    {
+      "name": "fn02_binary_search",
+      "input_score": 46,
+      "experimental_delta": 43,
+      "control_delta": 26,
+      "advantage": 17
+    },
+    {
+      "name": "fn03_string_copy",
+      "input_score": 38,
+      "experimental_delta": 51,
+      "control_delta": 44,
+      "advantage": 7
+    },
+    {
+      "name": "fn04_hash_table_lookup",
+      "input_score": 45,
+      "experimental_delta": 40,
+      "control_delta": 33,
+      "advantage": 7
+    },
+    {
+      "name": "fn05_bubble_sort",
+      "input_score": 54,
+      "experimental_delta": 35,
+      "control_delta": 25,
+      "advantage": 10
+    },
+    {
+      "name": "fn06_file_read",
+      "input_score": 43,
+      "experimental_delta": 42,
+      "control_delta": 36,
+      "advantage": 6
+    },
+    {
+      "name": "fn07_tcp_connect",
+      "input_score": 39,
+      "experimental_delta": 56,
+      "control_delta": 39,
+      "advantage": 17
+    },
+    {
+      "name": "fn08_base64_decode",
+      "input_score": 44,
+      "experimental_delta": 34,
+      "control_delta": 37,
+      "advantage": -3
+    },
+    {
+      "name": "fn09_tree_traversal",
+      "input_score": 47,
+      "experimental_delta": 27,
+      "control_delta": 25,
+      "advantage": 2
+    },
+    {
+      "name": "fn10_matrix_multiply",
+      "input_score": 51,
+      "experimental_delta": 30,
+      "control_delta": 21,
+      "advantage": 9
+    },
+    {
+      "name": "fn11_ring_buffer",
+      "input_score": 35,
+      "experimental_delta": 53,
+      "control_delta": 35,
+      "advantage": 18
+    },
+    {
+      "name": "fn12_strcmp_custom",
+      "input_score": 44,
+      "experimental_delta": 38,
+      "control_delta": 29,
+      "advantage": 9
+    },
+    {
+      "name": "fn13_memory_pool",
+      "input_score": 46,
+      "experimental_delta": 30,
+      "control_delta": 27,
+      "advantage": 3
+    },
+    {
+      "name": "fn14_crc32",
+      "input_score": 53,
+      "experimental_delta": 31,
+      "control_delta": 26,
+      "advantage": 5
+    },
+    {
+      "name": "fn15_url_parse",
+      "input_score": 33,
+      "experimental_delta": 32,
+      "control_delta": 28,
+      "advantage": 4
+    },
+    {
+      "name": "fn16_json_skip_value",
+      "input_score": 36,
+      "experimental_delta": 40,
+      "control_delta": 31,
+      "advantage": 9
+    },
+    {
+      "name": "fn17_lru_cache_get",
+      "input_score": 37,
+      "experimental_delta": 42,
+      "control_delta": 34,
+      "advantage": 8
+    },
+    {
+      "name": "fn18_bitfield_pack",
+      "input_score": 45,
+      "experimental_delta": 47,
+      "control_delta": 28,
+      "advantage": 19
+    },
+    {
+      "name": "fn19_signal_handler",
+      "input_score": 27,
+      "experimental_delta": 45,
+      "control_delta": 36,
+      "advantage": 9
+    },
+    {
+      "name": "fn20_thread_pool_submit",
+      "input_score": 31,
+      "experimental_delta": 50,
+      "control_delta": 35,
+      "advantage": 15
+    }
+  ]
+}
