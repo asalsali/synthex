@@ -1,8 +1,15 @@
-"""Code quality scoring for decompiled C refinement."""
+"""Code quality scoring for decompiled C refinement.
+
+FROZEN at scorer-v1. Do not modify scoring weights or metrics
+without creating a new tag. Benchmark comparisons depend on
+deterministic, versioned scoring."""
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import tempfile
 from dataclasses import dataclass, field
 
 
@@ -46,6 +53,8 @@ class ScoreBreakdown:
     total_declarations: int = 0
     comment_lines: int = 0
     magic_number_count: int = 0
+    compiles: bool = False
+    compile_errors: list[str] = field(default_factory=list)
 
     @property
     def total_score(self) -> int:
@@ -166,6 +175,36 @@ def _count_comment_lines(code: str) -> int:
     return count
 
 
+def _try_compile(code: str) -> tuple[bool, list[str]]:
+    """Attempt gcc -c on the code. Returns (success, error_lines)."""
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".c", mode="w", delete=False) as f:
+            f.write(code)
+            f.flush()
+            tmp_path = f.name
+        obj_path = tmp_path.replace(".c", ".o")
+        result = subprocess.run(
+            ["gcc", "-c", "-fsyntax-only", "-w", tmp_path],
+            capture_output=True, text=True, timeout=10,
+        )
+        try:
+            os.unlink(tmp_path)
+            if os.path.exists(obj_path):
+                os.unlink(obj_path)
+        except OSError:
+            pass
+        if result.returncode == 0:
+            return True, []
+        errors = [
+            line.strip() for line in result.stderr.splitlines()
+            if "error:" in line
+        ][:5]  # cap at 5 errors
+        return False, errors
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        # gcc not available — report as unknown, not failure
+        return False, ["gcc not found"]
+
+
 def _cyclomatic_complexity(code: str) -> int:
     """Estimate cyclomatic complexity from control flow keywords."""
     complexity = 1  # base complexity
@@ -192,6 +231,7 @@ def score_code(code: str) -> ScoreBreakdown:
     comment_density = comment_lines / max(lines, 1)
     complexity = _cyclomatic_complexity(code)
     magic_numbers = len(re.findall(r"\b0x[0-9a-fA-F]{3,}\b", code))
+    compiles, compile_errors = _try_compile(code)
 
     return ScoreBreakdown(
         lines=lines,
@@ -206,4 +246,6 @@ def score_code(code: str) -> ScoreBreakdown:
         total_declarations=total_decls,
         comment_lines=comment_lines,
         magic_number_count=magic_numbers,
+        compiles=compiles,
+        compile_errors=compile_errors,
     )

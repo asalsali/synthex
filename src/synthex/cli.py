@@ -107,6 +107,11 @@ def _print_breakdown(label: str, breakdown: ScoreBreakdown) -> None:
         f"{breakdown.comment_density:.1%} ({breakdown.comment_lines} lines)",
     )
     table.add_row("Cyclomatic complexity", str(breakdown.cyclomatic_complexity))
+    table.add_row("Magic numbers", str(breakdown.magic_number_count))
+    compile_str = "[green]YES[/green]" if breakdown.compiles else "[red]NO[/red]"
+    if breakdown.compile_errors and breakdown.compile_errors != ["gcc not found"]:
+        compile_str += f" ({len(breakdown.compile_errors)} errors)"
+    table.add_row("Compiles (gcc -c)", compile_str)
     table.add_row("Total score", f"[bold {_score_color(breakdown.total_score)}]{breakdown.total_score}/100[/]")
 
     console.print(table)
@@ -282,3 +287,135 @@ def compare(file1: str, file2: str) -> None:
 
     console.print(table)
     console.print()
+
+
+@main.command()
+@click.argument("directory", type=click.Path(exists=True))
+@click.option("--model", default="gpt-4o-mini", help="LLM model name.")
+@click.option("--output", default="benchmark-output", help="Output directory.")
+@click.option("--base-url", default=None, help="OpenAI-compatible API base URL.")
+def benchmark(directory: str, model: str, output: str, base_url: str | None) -> None:
+    """Run A/B benchmark: generational pipeline vs budget-matched control.
+
+    DIRECTORY should contain .c files (one function each).
+    Control arm: 3 sequential normalizer passes, no exit reports, no fork.
+    Same token budget. Reports delta between arms.
+    """
+    import json as json_mod
+    from synthex.benchmark import run_benchmark
+
+    input_dir = Path(directory)
+    output_dir = Path(output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    c_files = sorted(input_dir.glob("*.c"))
+    if not c_files:
+        console.print(f"[red]No .c files found in {directory}[/red]")
+        raise SystemExit(1)
+
+    _print_header()
+    console.print(f"  Benchmark: {len(c_files)} functions")
+    console.print(f"  Model: {model}")
+    console.print(f"  Arms: [bold]experimental[/bold] (G1->G2a+G2b->G3) vs [bold]control[/bold] (3x normalizer)")
+    console.print()
+
+    results = []
+    for i, f in enumerate(c_files, 1):
+        code = f.read_text(encoding="utf-8", errors="replace")
+        fname = f.stem
+        console.print(Rule(f"[{i}/{len(c_files)}] {fname}", style=DIM))
+
+        try:
+            r = run_benchmark(
+                code=code,
+                function_name=fname,
+                model=model,
+                output_dir=output_dir,
+                base_url=base_url,
+            )
+            results.append(r)
+
+            adv_color = "green" if r.advantage > 0 else ("red" if r.advantage < 0 else DIM)
+            console.print(
+                f"  Input: {r.input_score}  "
+                f"Exp: {r.experimental.delta:+d} ({r.experimental.compile_rate:.0%} compile)  "
+                f"Ctrl: {r.control.delta:+d} ({r.control.compile_rate:.0%} compile)  "
+                f"Advantage: [{adv_color}]{r.advantage:+d}[/{adv_color}]"
+            )
+        except Exception as e:
+            console.print(f"  [red]Error: {e}[/red]")
+        console.print()
+
+    if not results:
+        console.print("[red]No results.[/red]")
+        return
+
+    # Summary table
+    console.print(Rule(style=GOLD))
+    table = Table(title="Benchmark Results", title_style=f"bold {GOLD}",
+                  border_style=GOLD, show_lines=True)
+    table.add_column("Function", style="bold")
+    table.add_column("Input", justify="right")
+    table.add_column("Exp Delta", justify="right")
+    table.add_column("Ctrl Delta", justify="right")
+    table.add_column("Advantage", justify="right")
+    table.add_column("Exp Compile", justify="right")
+    table.add_column("Ctrl Compile", justify="right")
+
+    for r in results:
+        adv_color = "green" if r.advantage > 0 else ("red" if r.advantage < 0 else DIM)
+        table.add_row(
+            r.function_name,
+            str(r.input_score),
+            f"{r.experimental.delta:+d}",
+            f"{r.control.delta:+d}",
+            f"[{adv_color}]{r.advantage:+d}[/{adv_color}]",
+            f"{r.experimental.compile_rate:.0%}",
+            f"{r.control.compile_rate:.0%}",
+        )
+
+    avg_advantage = sum(r.advantage for r in results) / len(results)
+    wins = sum(1 for r in results if r.advantage > 0)
+    losses = sum(1 for r in results if r.advantage < 0)
+    ties = sum(1 for r in results if r.advantage == 0)
+    avg_exp_compile = sum(r.experimental.compile_rate for r in results) / len(results)
+    avg_ctrl_compile = sum(r.control.compile_rate for r in results) / len(results)
+    exp_tokens = sum(r.experimental.total_tokens for r in results)
+    ctrl_tokens = sum(r.control.total_tokens for r in results)
+
+    table.add_row(
+        "[bold]MEAN[/bold]", "",
+        f"{sum(r.experimental.delta for r in results) / len(results):+.1f}",
+        f"{sum(r.control.delta for r in results) / len(results):+.1f}",
+        f"[bold]{avg_advantage:+.1f}[/bold]",
+        f"{avg_exp_compile:.0%}",
+        f"{avg_ctrl_compile:.0%}",
+    )
+
+    console.print(table)
+    console.print()
+    console.print(f"  Record: [green]{wins}W[/green] / [red]{losses}L[/red] / [{DIM}]{ties}T[/{DIM}]")
+    console.print(f"  Mean advantage: {avg_advantage:+.1f} points")
+    console.print(f"  Compile rate: experimental {avg_exp_compile:.0%} vs control {avg_ctrl_compile:.0%}")
+    console.print(f"  Tokens: experimental {exp_tokens:,} vs control {ctrl_tokens:,}")
+    console.print()
+
+    report = {
+        "model": model,
+        "functions": len(results),
+        "wins": wins, "losses": losses, "ties": ties,
+        "mean_advantage": round(avg_advantage, 1),
+        "experimental_compile_rate": round(avg_exp_compile, 3),
+        "control_compile_rate": round(avg_ctrl_compile, 3),
+        "experimental_tokens": exp_tokens,
+        "control_tokens": ctrl_tokens,
+        "per_function": [
+            {"name": r.function_name, "input_score": r.input_score,
+             "experimental_delta": r.experimental.delta, "control_delta": r.control.delta,
+             "advantage": r.advantage}
+            for r in results
+        ],
+    }
+    report_path = output_dir / "benchmark-report.json"
+    report_path.write_text(json_mod.dumps(report, indent=2))
+    console.print(f"  Report: [{DIM}]{report_path}[/{DIM}]")
