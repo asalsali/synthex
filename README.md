@@ -115,4 +115,4 @@ Synthex uses a **tools-first, governance-informed** architecture:
 
 ## License
 
-Covenant Public License (CPL)
+MIT

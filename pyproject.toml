@@ -15,6 +15,9 @@ dependencies = [
     "openai>=1.0",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
 [project.scripts]
 synthex = "synthex.cli:main"
 
