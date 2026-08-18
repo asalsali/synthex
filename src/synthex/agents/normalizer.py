@@ -41,12 +41,24 @@ describing its apparent purpose.
 6. CLEAN UP FORMATTING: Consistent indentation, logical grouping of \
 related statements.
 
+7. GHIDRA-SPECIFIC PATTERNS: \
+Replace undefined8 with long long, undefined4 with int, undefined2 with short, \
+undefined/undefined1 with unsigned char, byte with unsigned char. \
+Replace ulonglong with unsigned long long, longlong with long long. \
+Replace (void *)0x0 with NULL. Replace CONCAT44(a,b) with bitwise operations. \
+The pattern *(long *)(in_FS_OFFSET + 0x28) is a stack canary -- remove the \
+entire canary check block (the initial read AND the __stack_chk_fail check at the end). \
+PTR_DAT_* and DAT_* are global data pointers -- name them based on how they are used.
+
+8. ADD INCLUDES: Add #include <stdio.h>, <stdlib.h>, <string.h>, <stdint.h> \
+as appropriate based on functions used in the code.
+
 CONSTRAINTS:
 - Preserve the exact functional behavior of the code.
 - Do not add or remove functions.
-- Do not change function signatures arbitrarily -- but you MAY replace \
-undefined8 with a more specific return type.
+- Do not change function signatures arbitrarily -- but you MUST replace \
+Ghidra types (undefined8 etc) with standard C types.
 - Keep the code in C (do not convert to C++).
-- Preserve stack canary checks (__stack_chk_fail) as-is.
+- Remove stack canary code entirely (it is compiler-generated, not part of the logic).
 
 OUTPUT: Return ONLY the refined C code inside a ```c code fence."""

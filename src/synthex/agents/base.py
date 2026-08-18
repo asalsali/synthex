@@ -224,18 +224,90 @@ class BaseAgent:
         code: str,
         parent_report: ExitReport | None = None,
         parent_reports: list[ExitReport] | None = None,
+        function_map: dict[str, str] | None = None,
     ) -> AgentResult:
-        """Execute this agent: send code to LLM, score result, write exit report."""
-        user_prompt = self._build_user_prompt(code, parent_report, parent_reports)
-        response = self.llm.call(self.system_prompt, user_prompt)
+        """Execute this agent with compile-feedback and self-healing.
 
+        1. Send code to LLM
+        2. If output doesn't compile, feed errors back for retry (max 2)
+        3. If output score regresses, retry with regression context (max 1)
+        """
+        input_scores = score_code(code)
+        total_tokens = 0
+
+        # Build initial prompt with cross-function context
+        user_prompt = self._build_user_prompt(code, parent_report, parent_reports)
+        if function_map:
+            map_str = "\n".join(f"  {k}: {v}" for k, v in function_map.items())
+            user_prompt = (
+                f"Known functions in this binary:\n{map_str}\n\n"
+                f"Use these names when you see calls to these addresses.\n\n"
+                + user_prompt
+            )
+
+        # --- First attempt ---
+        response = self.llm.call(self.system_prompt, user_prompt)
+        total_tokens += response.total_tokens
         refined_code = _extract_code_block(response.text)
         output_scores = score_code(refined_code)
 
+        # --- Compile-feedback loop (max 2 retries) ---
+        for retry in range(2):
+            if output_scores.compiles or not output_scores.compile_errors:
+                break
+            if output_scores.compile_errors == ["gcc not found"]:
+                break
+            error_str = "\n".join(output_scores.compile_errors)
+            fix_prompt = (
+                f"Your previous output had compile errors:\n{error_str}\n\n"
+                f"Here is your code:\n```c\n{refined_code}\n```\n\n"
+                f"Fix the compile errors. Return ONLY the fixed C code "
+                f"inside a ```c code fence."
+            )
+            fix_response = self.llm.call(self.system_prompt, fix_prompt)
+            total_tokens += fix_response.total_tokens
+            fixed_code = _extract_code_block(fix_response.text)
+            fixed_scores = score_code(fixed_code)
+            # Only accept fix if it doesn't regress score
+            if fixed_scores.total_score >= output_scores.total_score - 2:
+                refined_code = fixed_code
+                output_scores = fixed_scores
+
+        # --- Self-healing: retry if score regressed ---
+        if output_scores.total_score < input_scores.total_score:
+            heal_prompt = (
+                f"Your output scored {output_scores.total_score}/100, "
+                f"which is lower than the input score {input_scores.total_score}/100.\n"
+                f"Regressions detected in: "
+            )
+            regressions = []
+            if output_scores.goto_count > input_scores.goto_count:
+                regressions.append(f"goto count increased ({input_scores.goto_count} -> {output_scores.goto_count})")
+            if output_scores.meaningful_names < input_scores.meaningful_names:
+                regressions.append(f"naming quality dropped")
+            if output_scores.comment_density < input_scores.comment_density:
+                regressions.append(f"comments were removed")
+            heal_prompt += ", ".join(regressions) if regressions else "overall quality"
+            heal_prompt += (
+                f"\n\nHere is the original code:\n```c\n{code}\n```\n\n"
+                f"Try again. Preserve what works in the original. "
+                f"Return ONLY the refined C code inside a ```c code fence."
+            )
+            heal_response = self.llm.call(self.system_prompt, heal_prompt)
+            total_tokens += heal_response.total_tokens
+            healed_code = _extract_code_block(heal_response.text)
+            healed_scores = score_code(healed_code)
+            if healed_scores.total_score > output_scores.total_score:
+                refined_code = healed_code
+                output_scores = healed_scores
+
+        # --- Build exit report ---
         exit_report = self._parse_exit_report_from_output(
             code, refined_code, parent_report
         )
-        exit_report.tokens_consumed = response.total_tokens
+        exit_report.tokens_consumed = total_tokens
+        if output_scores.compiles:
+            exit_report.what_worked.append("Code compiles with gcc")
         exit_report.save(self.output_dir)
 
         return AgentResult(

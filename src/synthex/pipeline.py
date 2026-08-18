@@ -81,6 +81,7 @@ def run_pipeline(
     output_dir: str | Path = "synthex-output",
     generations: int = 3,
     base_url: str | None = None,
+    function_map: dict[str, str] | None = None,
 ) -> PipelineResult:
     """Run the full multi-generational refinement pipeline.
 
@@ -114,7 +115,7 @@ def run_pipeline(
 
     # --- G1: Normalizer ---
     normalizer = Normalizer(llm=llm, output_dir=inheritance_dir)
-    g1_result = normalizer.run(input_code)
+    g1_result = normalizer.run(input_code, function_map=function_map)
 
     g1_gen = GenerationResult(
         name="G1 Normalizer",
@@ -140,7 +141,7 @@ def run_pipeline(
 
     # --- G2a: Optimizer ---
     optimizer = Optimizer(llm=llm, output_dir=inheritance_dir)
-    g2a_result = optimizer.run(g1_result.code, parent_report=g1_result.exit_report)
+    g2a_result = optimizer.run(g1_result.code, parent_report=g1_result.exit_report, function_map=function_map)
 
     g2a_gen = GenerationResult(
         name="G2a Optimizer",
@@ -162,7 +163,7 @@ def run_pipeline(
 
     # --- G2b: Clarifier ---
     clarifier = Clarifier(llm=llm, output_dir=inheritance_dir)
-    g2b_result = clarifier.run(g1_result.code, parent_report=g1_result.exit_report)
+    g2b_result = clarifier.run(g1_result.code, parent_report=g1_result.exit_report, function_map=function_map)
 
     g2b_gen = GenerationResult(
         name="G2b Clarifier",
@@ -192,6 +193,7 @@ def run_pipeline(
         parent_reports=[g2a_result.exit_report, g2b_result.exit_report],
         optimizer_code=g2a_result.code,
         clarifier_code=g2b_result.code,
+        function_map=function_map,
     )
 
     g3_gen = GenerationResult(

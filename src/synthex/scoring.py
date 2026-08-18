@@ -11,6 +11,7 @@ import re
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 # Patterns matching Ghidra-style generated names
@@ -175,22 +176,47 @@ def _count_comment_lines(code: str) -> int:
     return count
 
 
+def _find_ghidra_header() -> str | None:
+    """Find the ghidra_types.h header bundled with Synthex."""
+    candidates = [
+        Path(__file__).parent / "ghidra_types.h",
+        Path(__file__).parent.parent.parent / "src" / "synthex" / "ghidra_types.h",
+    ]
+    for p in candidates:
+        if p.exists():
+            return str(p.parent)
+    return None
+
+
 def _try_compile(code: str) -> tuple[bool, list[str]]:
-    """Attempt gcc -c on the code. Returns (success, error_lines)."""
+    """Attempt gcc -c on the code. Returns (success, error_lines).
+
+    Automatically includes ghidra_types.h for Ghidra-specific types.
+    """
     try:
+        # Prepend ghidra types include if code has Ghidra patterns
+        ghidra_patterns = ["undefined8", "undefined4", "longlong", "ulonglong",
+                           "in_FS_OFFSET", "LOCK()", "byte "]
+        needs_header = any(p in code for p in ghidra_patterns)
+
         with tempfile.NamedTemporaryFile(suffix=".c", mode="w", delete=False) as f:
+            if needs_header:
+                f.write('#include "ghidra_types.h"\n\n')
             f.write(code)
             f.flush()
             tmp_path = f.name
-        obj_path = tmp_path.replace(".c", ".o")
+
+        gcc_cmd = ["gcc", "-c", "-fsyntax-only"]
+        header_dir = _find_ghidra_header()
+        if header_dir and needs_header:
+            gcc_cmd.extend(["-I", header_dir])
+        gcc_cmd.append(tmp_path)
+
         result = subprocess.run(
-            ["gcc", "-c", "-fsyntax-only", "-w", tmp_path],
-            capture_output=True, text=True, timeout=10,
+            gcc_cmd, capture_output=True, text=True, timeout=10,
         )
         try:
             os.unlink(tmp_path)
-            if os.path.exists(obj_path):
-                os.unlink(obj_path)
         except OSError:
             pass
         if result.returncode == 0:
@@ -198,10 +224,9 @@ def _try_compile(code: str) -> tuple[bool, list[str]]:
         errors = [
             line.strip() for line in result.stderr.splitlines()
             if "error:" in line
-        ][:5]  # cap at 5 errors
+        ][:5]
         return False, errors
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        # gcc not available — report as unknown, not failure
         return False, ["gcc not found"]
 
 

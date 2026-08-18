@@ -125,6 +125,7 @@ def run_experimental_arm(
     model: str,
     output_dir: Path,
     base_url: str | None = None,
+    function_map: dict[str, str] | None = None,
 ) -> ArmResult:
     """Run the full generational pipeline (G1 -> G2a+G2b -> G3)."""
     start = time.time()
@@ -135,6 +136,7 @@ def run_experimental_arm(
         output_dir=output_dir,
         generations=3,
         base_url=base_url,
+        function_map=function_map,
     )
     duration = time.time() - start
 

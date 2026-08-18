@@ -65,6 +65,7 @@ OUTPUT: Return ONLY the synthesized C code inside a ```c code fence."""
         parent_reports: list[ExitReport] | None = None,
         optimizer_code: str | None = None,
         clarifier_code: str | None = None,
+        function_map: dict[str, str] | None = None,
     ) -> AgentResult:
         """Execute synthesis from two parent code versions."""
         if parent_reports is None:
@@ -73,7 +74,11 @@ OUTPUT: Return ONLY the synthesized C code inside a ```c code fence."""
             parent_reports.insert(0, parent_report)
 
         # Build a custom prompt with both code versions
-        parts = ["You have two parent code versions to synthesize.\n"]
+        parts = []
+        if function_map:
+            map_str = "\n".join(f"  {k}: {v}" for k, v in function_map.items())
+            parts.append(f"Known functions in this binary:\n{map_str}\n")
+        parts.append("You have two parent code versions to synthesize.\n")
         parts.append("=== OPTIMIZER (G2a) CODE ===")
         parts.append(f"```c\n{optimizer_code or code}\n```\n")
         parts.append("=== CLARIFIER (G2b) CODE ===")
