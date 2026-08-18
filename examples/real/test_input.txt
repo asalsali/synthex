@@ -1,0 +1,8 @@
+set foo bar
+get foo
+set hello world
+get hello
+del foo
+get foo
+save test.db
+quit

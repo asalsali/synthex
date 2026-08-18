@@ -419,3 +419,100 @@ def benchmark(directory: str, model: str, output: str, base_url: str | None) -> 
     report_path = output_dir / "benchmark-report.json"
     report_path.write_text(json_mod.dumps(report, indent=2))
     console.print(f"  Report: [{DIM}]{report_path}[/{DIM}]")
+
+
+@main.command()
+@click.argument("input_file", type=click.Path(exists=True))
+@click.option(
+    "--output", "-o", default="reconstructed",
+    help="Output directory for the reconstructed project.",
+)
+@click.option(
+    "--model", "-m", default="gpt-4o-mini",
+    help="LLM model name (OpenAI-compatible).",
+)
+@click.option(
+    "--base-url", default=None,
+    help="OpenAI-compatible API base URL.",
+)
+def reconstruct(
+    input_file: str,
+    output: str,
+    model: str,
+    base_url: str | None,
+) -> None:
+    """Reconstruct a compilable C project from Ghidra decompiled output.
+
+    Takes a decompiled .c file (e.g., from Ghidra) and produces a single
+    compilable, runnable C project by identifying user functions, cleaning
+    them via LLM, and assembling the result.
+    """
+    from synthex.reconstruct import reconstruct as run_reconstruct
+
+    _print_header()
+
+    input_path = Path(input_file)
+    console.print(f"  Input: [bold]{input_path.name}[/bold]")
+    console.print(f"  Model: [{DIM}]{model}[/{DIM}]")
+    console.print(f"  Output: [{DIM}]{output}/[/{DIM}]")
+    console.print()
+
+    def on_progress(stage: str, detail: str) -> None:
+        stage_icons = {
+            "parse": "1/6 Parse",
+            "filter": "2/6 Filter",
+            "reconstruct": "3/6 Reconstruct",
+            "skip": "3/6 Reconstruct",
+            "assemble": "4/6 Assemble",
+            "compile": "5/6 Compile",
+            "fix": "5/6 Fix",
+            "test": "6/6 Test",
+        }
+        label = stage_icons.get(stage, stage)
+        console.print(f"  [{DIM}][{label}][/{DIM}] {detail}")
+
+    try:
+        result = run_reconstruct(
+            decompiled_file=input_file,
+            output_dir=output,
+            model=model,
+            base_url=base_url,
+            on_progress=on_progress,
+        )
+    except Exception as exc:
+        console.print(f"\n[red bold]Error:[/red bold] {exc}")
+        raise SystemExit(1)
+
+    # Summary
+    console.print()
+    console.print(Rule(style=GOLD))
+    console.print(f"  [bold]Functions reconstructed:[/bold] {len(result.functions)}")
+
+    # Show function mapping
+    for func in result.functions:
+        console.print(f"    {func.original_name} -> [bold]{func.new_name}[/bold]")
+
+    console.print()
+
+    # Compilation result
+    if result.compiled:
+        console.print(f"  Compilation: [green]SUCCESS[/green] (attempt {result.compile_attempts})")
+    else:
+        console.print(f"  Compilation: [red]FAILED[/red] after {result.compile_attempts} attempts")
+        if result.compile_errors:
+            for err in result.compile_errors[:10]:
+                console.print(f"    [red]{err}[/red]")
+
+    # Differential test result
+    if result.diff_test_passed is True:
+        console.print(f"  Differential test: [green]PASSED[/green] -- output matches original binary")
+    elif result.diff_test_passed is False:
+        console.print(f"  Differential test: [red]FAILED[/red]")
+        if result.diff_test_output:
+            console.print(f"    {result.diff_test_output[:200]}")
+    else:
+        console.print(f"  Differential test: [{DIM}]skipped[/{DIM}]")
+
+    console.print(f"  Tokens: [{DIM}]{result.total_tokens:,}[/{DIM}]")
+    console.print(f"  Output: [{DIM}]{result.output_dir}/reconstructed.c[/{DIM}]")
+    console.print()
