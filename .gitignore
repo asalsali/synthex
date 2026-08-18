@@ -9,7 +9,9 @@ build/
 __pycache__/
 benchmark-real/
 benchmark-real-v2/
-reconstructed*/
+reconstructed/
+reconstructed-v[1-9]/
+!reconstructed-v10/
 synthex-output*/
 test-opt/
 test.db
