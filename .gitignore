@@ -7,3 +7,9 @@ dist/
 build/
 *.egg-info/
 __pycache__/
+benchmark-real/
+benchmark-real-v2/
+reconstructed*/
+synthex-output*/
+test-opt/
+test.db
