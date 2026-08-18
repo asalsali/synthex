@@ -1,0 +1,41 @@
+name: Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install gcc
+        run: sudo apt-get update && sudo apt-get install -y gcc
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+      - name: Compile reconstruction v10
+        run: gcc -O2 -o kvstore_v10 reconstructed-v10/reconstructed.c
+
+      - name: Functional equivalence test
+        run: |
+          gcc -O2 -o kvstore_original examples/real/source.c
+          echo -e "set foo bar\nget foo\nset baz qux\nget baz\nget missing\ndel foo\nget foo\nquit" | ./kvstore_original > /tmp/original_out.txt
+          echo -e "set foo bar\nget foo\nset baz qux\nget baz\nget missing\ndel foo\nget foo\nquit" | ./kvstore_v10 > /tmp/recon_out.txt
+          diff /tmp/original_out.txt /tmp/recon_out.txt

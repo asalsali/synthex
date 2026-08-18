@@ -516,3 +516,63 @@ def reconstruct(
     console.print(f"  Tokens: [{DIM}]{result.total_tokens:,}[/{DIM}]")
     console.print(f"  Output: [{DIM}]{result.output_dir}/reconstructed.c[/{DIM}]")
     console.print()
+
+
+@main.command()
+@click.argument("original", type=click.Path(exists=True))
+@click.argument("reconstructed", type=click.Path(exists=True))
+@click.option("--original-source", "-s", default=None,
+              type=click.Path(exists=True),
+              help="Original .c source (if original arg is a binary)")
+def verify(original: str, reconstructed: str, original_source: str | None) -> None:
+    """Verify functional equivalence between original and reconstructed code.
+
+    Compiles the reconstructed C file, runs test inputs through both the
+    original binary and the reconstruction, and diffs the outputs.
+
+    ORIGINAL can be a binary or .c source file.
+    RECONSTRUCTED must be a .c source file.
+    """
+    from synthex.verify import verify as run_verify
+
+    _print_header()
+    console.print(f"  Original:      [bold]{original}[/bold]")
+    console.print(f"  Reconstructed: [bold]{reconstructed}[/bold]")
+    console.print()
+
+    result = run_verify(
+        original_binary=original,
+        reconstructed_source=reconstructed,
+        original_source=original_source,
+    )
+
+    if not result.compiled:
+        console.print("[red bold]Compilation failed:[/red bold]")
+        for err in result.compile_errors:
+            console.print(f"  [red]{err}[/red]")
+        raise SystemExit(1)
+
+    console.print(f"  Compiled: [green]OK[/green]")
+    console.print()
+
+    # Test results
+    for i in range(result.tests_run):
+        if i < len(result.failures):
+            fail = result.failures[i - (result.tests_run - len(result.failures))]
+            console.print(f"  [red]FAIL[/red] {fail['test']}")
+            console.print(f"    expected: {fail['expected'][:100]}")
+            console.print(f"    actual:   {fail['actual'][:100]}")
+        else:
+            pass  # passed tests shown in summary
+
+    # Summary
+    console.print()
+    if result.all_passed:
+        console.print(f"  [green bold]{result.tests_passed}/{result.tests_run} tests passed.[/green bold] "
+                      f"Functional equivalence verified.")
+    else:
+        console.print(f"  [red bold]{result.tests_failed}/{result.tests_run} tests failed.[/red bold]")
+        for fail in result.failures:
+            console.print(f"    [red]x[/red] {fail['test']}")
+        raise SystemExit(1)
+    console.print()
