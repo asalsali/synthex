@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest"]
+api = ["fastapi>=0.100", "uvicorn[standard]>=0.20", "pydantic>=2.0"]
 
 [project.scripts]
 synthex = "synthex.cli:main"

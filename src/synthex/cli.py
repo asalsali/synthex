@@ -518,6 +518,52 @@ def reconstruct(
     console.print()
 
 
+@main.group()
+def api() -> None:
+    """Manage the Synthex API server."""
+
+
+@api.command()
+@click.option("--host", default="0.0.0.0", help="Bind host")
+@click.option("--port", default=8000, help="Bind port")
+def serve(host: str, port: int) -> None:
+    """Start the Synthex API server."""
+    try:
+        import uvicorn
+    except ImportError:
+        console.print("[red]Install API dependencies: pip install synthex[api][/red]")
+        raise SystemExit(1)
+
+    _print_header()
+    console.print(f"  Starting API server on [bold]{host}:{port}[/bold]")
+    console.print(f"  Docs: [{DIM}]http://{host}:{port}/docs[/{DIM}]")
+    console.print()
+    uvicorn.run("synthex.api.server:app", host=host, port=port, reload=False)
+
+
+@api.command(name="create-key")
+@click.argument("owner")
+@click.option("--tier", default="free", type=click.Choice(["free", "pro", "team"]))
+def create_key(owner: str, tier: str) -> None:
+    """Create a new API key."""
+    from synthex.api.auth import create_api_key, TIERS
+
+    key = create_api_key(owner, tier)
+    tier_info = TIERS[tier]
+
+    _print_header()
+    console.print(f"  Owner: [bold]{owner}[/bold]")
+    console.print(f"  Tier:  [bold]{tier}[/bold] ({tier_info.requests_per_day} req/day, ${tier_info.price_monthly}/mo)")
+    console.print()
+    console.print(f"  [bold {GOLD}]API Key:[/bold {GOLD}] {key}")
+    console.print()
+    console.print(f"  [{DIM}]Save this key — it won't be shown again.[/{DIM}]")
+    console.print()
+
+
+main.add_command(api)
+
+
 @main.command()
 @click.argument("original", type=click.Path(exists=True))
 @click.argument("reconstructed", type=click.Path(exists=True))
